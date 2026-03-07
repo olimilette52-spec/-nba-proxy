@@ -36,28 +36,23 @@ app.get("/nba/scores", async (req, res) => {
   }
 });
 
-// Stats NBA — moyennes de points par équipe
+// Stats NBA — une seule requête pour toutes les équipes
 app.get("/nba/stats", async (req, res) => {
   try {
-    const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=30");
+    const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=30&enable=stats");
     const data = await r.json();
     const stats = {};
-    for (const team of data.sports[0].leagues[0].teams) {
+    const teams = data.sports[0].leagues[0].teams;
+    for (const team of teams) {
       const t = team.team;
-      try {
-        const sr = await fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${t.id}/statistics`);
-        const sd = await sr.json();
-        const cats = sd.results?.stats?.categories || [];
-        const scoring = cats.find(c => c.name === "scoring");
-        const ppg = scoring?.stats?.find(s => s.name === "avgPoints")?.value || null;
-        const oppCat = cats.find(c => c.name === "defensive");
-        const oppg = oppCat?.stats?.find(s => s.name === "avgPoints")?.value || null;
-        stats[t.abbreviation] = {
-          ppg: ppg ? +parseFloat(ppg).toFixed(1) : null,
-          oppg: oppg ? +parseFloat(oppg).toFixed(1) : null,
-          name: t.displayName,
-        };
-      } catch {}
+      const record = t.record?.items?.[0];
+      const ppg = t.stats?.find(s => s.name === "avgPoints")?.value || null;
+      const oppg = t.stats?.find(s => s.name === "avgPointsAgainst")?.value || null;
+      stats[t.abbreviation] = {
+        name: t.displayName,
+        ppg: ppg ? +parseFloat(ppg).toFixed(1) : null,
+        oppg: oppg ? +parseFloat(oppg).toFixed(1) : null,
+      };
     }
     res.json(stats);
   } catch (err) {
