@@ -34,7 +34,22 @@ app.get("/nba/scores", async (req, res) => {
       const home = comp.competitors.find(c => c.homeAway === "home");
       const away = comp.competitors.find(c => c.homeAway === "away");
       const status = comp.status;
-      const line = comp.odds?.[0];
+      const odds = comp.odds?.[0];
+
+      // Spread
+      let spread = null;
+      let spreadTeam = null;
+      if(odds){
+        spread = odds.spread || null;
+        if(odds.homeTeamOdds?.favorite){
+          spreadTeam = home.team.abbreviation;
+          spread = odds.homeTeamOdds?.spreadOdds || odds.spread || null;
+        } else if(odds.awayTeamOdds?.favorite){
+          spreadTeam = away.team.abbreviation;
+          spread = odds.awayTeamOdds?.spreadOdds || odds.spread || null;
+        }
+      }
+
       return {
         id: e.id,
         home: home.team.abbreviation,
@@ -48,7 +63,9 @@ app.get("/nba/scores", async (req, res) => {
         isLive: status.type.state === "in",
         isFinished: status.type.state === "post",
         time: e.date,
-        total: line?.overUnder || null,
+        total: odds?.overUnder || null,
+        spread: spread ? +parseFloat(spread).toFixed(1) : null,
+        spreadTeam,
       };
     });
     const games = [
@@ -67,7 +84,6 @@ app.get("/nba/stats", async (req, res) => {
     const yesterday = getDateISO(-1);
     const tenDaysAgo = getDateISO(-10);
 
-    // Matchs récents pour calculer moyennes + back-to-back
     const recentRes = await fetch(
       `${BDL}/games?seasons[]=2024&start_date=${tenDaysAgo}&end_date=${yesterday}&per_page=100`,
       { headers }
@@ -75,35 +91,31 @@ app.get("/nba/stats", async (req, res) => {
     const recentData = await recentRes.json();
     const recentGames = recentData.data || [];
 
-    // Stats codées saison 2024-25 (base fiable)
     const BASE = {
-      ATL:{ppg:118.5,oppg:119.2}, BOS:{ppg:122.1,oppg:108.4}, BKN:{ppg:106.8,oppg:115.3},
-      CHA:{ppg:106.2,oppg:116.8}, CHI:{ppg:111.4,oppg:113.2}, CLE:{ppg:113.8,oppg:104.6},
-      DAL:{ppg:116.2,oppg:111.8}, DEN:{ppg:117.4,oppg:113.6}, DET:{ppg:108.4,oppg:117.2},
-      GSW:{ppg:114.6,oppg:114.8}, GS:{ppg:114.6,oppg:114.8},
-      HOU:{ppg:112.8,oppg:108.4}, IND:{ppg:122.4,oppg:119.6},
-      LAC:{ppg:112.6,oppg:110.4}, LAL:{ppg:114.2,oppg:111.6},
-      MEM:{ppg:113.6,oppg:112.8}, MIA:{ppg:106.4,oppg:108.2},
-      MIL:{ppg:114.8,oppg:113.4}, MIN:{ppg:112.4,oppg:106.2},
-      NOP:{ppg:108.6,oppg:116.4}, NO:{ppg:108.6,oppg:116.4},
-      NYK:{ppg:113.2,oppg:108.6}, NY:{ppg:113.2,oppg:108.6},
-      OKC:{ppg:118.4,oppg:106.2}, ORL:{ppg:108.2,oppg:104.6},
-      PHI:{ppg:108.4,oppg:111.6}, PHX:{ppg:112.6,oppg:114.8},
-      POR:{ppg:106.8,oppg:116.2}, SAC:{ppg:117.2,oppg:116.4},
-      SAS:{ppg:108.6,oppg:114.2}, SA:{ppg:108.6,oppg:114.2},
-      TOR:{ppg:106.2,oppg:114.8}, UTA:{ppg:108.4,oppg:116.6},
-      UTAH:{ppg:108.4,oppg:116.6}, WAS:{ppg:104.2,oppg:118.4},
+      ATL:{ppg:118.5,oppg:119.2,pace:100.2}, BOS:{ppg:122.1,oppg:108.4,pace:97.8},
+      BKN:{ppg:106.8,oppg:115.3,pace:96.4}, CHA:{ppg:106.2,oppg:116.8,pace:98.1},
+      CHI:{ppg:111.4,oppg:113.2,pace:97.6}, CLE:{ppg:113.8,oppg:104.6,pace:96.2},
+      DAL:{ppg:116.2,oppg:111.8,pace:98.4}, DEN:{ppg:117.4,oppg:113.6,pace:99.1},
+      DET:{ppg:108.4,oppg:117.2,pace:98.8}, GSW:{ppg:114.6,oppg:114.8,pace:99.4},
+      GS:{ppg:114.6,oppg:114.8,pace:99.4}, HOU:{ppg:112.8,oppg:108.4,pace:99.8},
+      IND:{ppg:122.4,oppg:119.6,pace:102.4}, LAC:{ppg:112.6,oppg:110.4,pace:97.2},
+      LAL:{ppg:114.2,oppg:111.6,pace:98.6}, MEM:{ppg:113.6,oppg:112.8,pace:100.6},
+      MIA:{ppg:106.4,oppg:108.2,pace:96.8}, MIL:{ppg:114.8,oppg:113.4,pace:99.2},
+      MIN:{ppg:112.4,oppg:106.2,pace:97.4}, NOP:{ppg:108.6,oppg:116.4,pace:98.2},
+      NO:{ppg:108.6,oppg:116.4,pace:98.2}, NYK:{ppg:113.2,oppg:108.6,pace:96.8},
+      NY:{ppg:113.2,oppg:108.6,pace:96.8}, OKC:{ppg:118.4,oppg:106.2,pace:100.2},
+      ORL:{ppg:108.2,oppg:104.6,pace:96.4}, PHI:{ppg:108.4,oppg:111.6,pace:97.2},
+      PHX:{ppg:112.6,oppg:114.8,pace:99.6}, POR:{ppg:106.8,oppg:116.2,pace:98.4},
+      SAC:{ppg:117.2,oppg:116.4,pace:101.2}, SAS:{ppg:108.6,oppg:114.2,pace:98.6},
+      SA:{ppg:108.6,oppg:114.2,pace:98.6}, TOR:{ppg:106.2,oppg:114.8,pace:97.8},
+      UTA:{ppg:108.4,oppg:116.6,pace:98.2}, UTAH:{ppg:108.4,oppg:116.6,pace:98.2},
+      WAS:{ppg:104.2,oppg:118.4,pace:97.6},
     };
 
     const stats = {};
-
     for (const [abbr, base] of Object.entries(BASE)) {
-      // Forme récente — totaux des 5 derniers matchs
       const teamGames = recentGames
-        .filter(g =>
-          g.home_team?.abbreviation === abbr ||
-          g.visitor_team?.abbreviation === abbr
-        )
+        .filter(g => g.home_team?.abbreviation === abbr || g.visitor_team?.abbreviation === abbr)
         .filter(g => g.status === "Final")
         .slice(-5);
 
@@ -113,7 +125,6 @@ app.get("/nba/stats", async (req, res) => {
         recentPts = +(totals.reduce((a, b) => a + b, 0) / totals.length).toFixed(1);
       }
 
-      // Back-to-back
       const playedYesterday = recentGames.some(g =>
         (g.home_team?.abbreviation === abbr || g.visitor_team?.abbreviation === abbr) &&
         g.date?.slice(0, 10) === yesterday &&
@@ -124,6 +135,7 @@ app.get("/nba/stats", async (req, res) => {
         name: abbr,
         ppg: base.ppg,
         oppg: base.oppg,
+        pace: base.pace,
         recentPts,
         backToBack: playedYesterday,
       };
@@ -131,28 +143,29 @@ app.get("/nba/stats", async (req, res) => {
 
     res.json(stats);
   } catch (err) {
-    // Fallback stats de base si API échoue
     const FALLBACK = {
-      ATL:{ppg:118.5,oppg:119.2}, BOS:{ppg:122.1,oppg:108.4}, BKN:{ppg:106.8,oppg:115.3},
-      CHA:{ppg:106.2,oppg:116.8}, CHI:{ppg:111.4,oppg:113.2}, CLE:{ppg:113.8,oppg:104.6},
-      DAL:{ppg:116.2,oppg:111.8}, DEN:{ppg:117.4,oppg:113.6}, DET:{ppg:108.4,oppg:117.2},
-      GSW:{ppg:114.6,oppg:114.8}, GS:{ppg:114.6,oppg:114.8},
-      HOU:{ppg:112.8,oppg:108.4}, IND:{ppg:122.4,oppg:119.6},
-      LAC:{ppg:112.6,oppg:110.4}, LAL:{ppg:114.2,oppg:111.6},
-      MEM:{ppg:113.6,oppg:112.8}, MIA:{ppg:106.4,oppg:108.2},
-      MIL:{ppg:114.8,oppg:113.4}, MIN:{ppg:112.4,oppg:106.2},
-      NOP:{ppg:108.6,oppg:116.4}, NO:{ppg:108.6,oppg:116.4},
-      NYK:{ppg:113.2,oppg:108.6}, NY:{ppg:113.2,oppg:108.6},
-      OKC:{ppg:118.4,oppg:106.2}, ORL:{ppg:108.2,oppg:104.6},
-      PHI:{ppg:108.4,oppg:111.6}, PHX:{ppg:112.6,oppg:114.8},
-      POR:{ppg:106.8,oppg:116.2}, SAC:{ppg:117.2,oppg:116.4},
-      SAS:{ppg:108.6,oppg:114.2}, SA:{ppg:108.6,oppg:114.2},
-      TOR:{ppg:106.2,oppg:114.8}, UTA:{ppg:108.4,oppg:116.6},
-      UTAH:{ppg:108.4,oppg:116.6}, WAS:{ppg:104.2,oppg:118.4},
+      ATL:{ppg:118.5,oppg:119.2,pace:100.2}, BOS:{ppg:122.1,oppg:108.4,pace:97.8},
+      BKN:{ppg:106.8,oppg:115.3,pace:96.4}, CHA:{ppg:106.2,oppg:116.8,pace:98.1},
+      CHI:{ppg:111.4,oppg:113.2,pace:97.6}, CLE:{ppg:113.8,oppg:104.6,pace:96.2},
+      DAL:{ppg:116.2,oppg:111.8,pace:98.4}, DEN:{ppg:117.4,oppg:113.6,pace:99.1},
+      DET:{ppg:108.4,oppg:117.2,pace:98.8}, GSW:{ppg:114.6,oppg:114.8,pace:99.4},
+      GS:{ppg:114.6,oppg:114.8,pace:99.4}, HOU:{ppg:112.8,oppg:108.4,pace:99.8},
+      IND:{ppg:122.4,oppg:119.6,pace:102.4}, LAC:{ppg:112.6,oppg:110.4,pace:97.2},
+      LAL:{ppg:114.2,oppg:111.6,pace:98.6}, MEM:{ppg:113.6,oppg:112.8,pace:100.6},
+      MIA:{ppg:106.4,oppg:108.2,pace:96.8}, MIL:{ppg:114.8,oppg:113.4,pace:99.2},
+      MIN:{ppg:112.4,oppg:106.2,pace:97.4}, NOP:{ppg:108.6,oppg:116.4,pace:98.2},
+      NO:{ppg:108.6,oppg:116.4,pace:98.2}, NYK:{ppg:113.2,oppg:108.6,pace:96.8},
+      NY:{ppg:113.2,oppg:108.6,pace:96.8}, OKC:{ppg:118.4,oppg:106.2,pace:100.2},
+      ORL:{ppg:108.2,oppg:104.6,pace:96.4}, PHI:{ppg:108.4,oppg:111.6,pace:97.2},
+      PHX:{ppg:112.6,oppg:114.8,pace:99.6}, POR:{ppg:106.8,oppg:116.2,pace:98.4},
+      SAC:{ppg:117.2,oppg:116.4,pace:101.2}, SAS:{ppg:108.6,oppg:114.2,pace:98.6},
+      SA:{ppg:108.6,oppg:114.2,pace:98.6}, TOR:{ppg:106.2,oppg:114.8,pace:97.8},
+      UTA:{ppg:108.4,oppg:116.6,pace:98.2}, UTAH:{ppg:108.4,oppg:116.6,pace:98.2},
+      WAS:{ppg:104.2,oppg:118.4,pace:97.6},
     };
     const result = {};
     for (const [abbr, s] of Object.entries(FALLBACK)) {
-      result[abbr] = { name: abbr, ppg: s.ppg, oppg: s.oppg, recentPts: null, backToBack: false };
+      result[abbr] = { name: abbr, ppg: s.ppg, oppg: s.oppg, pace: s.pace, recentPts: null, backToBack: false };
     }
     res.json(result);
   }
