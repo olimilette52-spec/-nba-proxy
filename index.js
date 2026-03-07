@@ -52,21 +52,24 @@ app.get("/nba/scores", async (req, res) => {
   }
 });
 
+// Stats NBA — moyennes via standings
 app.get("/nba/stats", async (req, res) => {
   try {
-    const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=30&enable=stats");
+    const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/basketball/nba/standings");
     const data = await r.json();
     const stats = {};
-    const teams = data.sports[0].leagues[0].teams;
-    for (const team of teams) {
-      const t = team.team;
-      const ppg = t.stats?.find(s => s.name === "avgPoints")?.value || null;
-      const oppg = t.stats?.find(s => s.name === "avgPointsAgainst")?.value || null;
-      stats[t.abbreviation] = {
-        name: t.displayName,
-        ppg: ppg ? +parseFloat(ppg).toFixed(1) : null,
-        oppg: oppg ? +parseFloat(oppg).toFixed(1) : null,
-      };
+    const groups = data.children || [];
+    for (const group of groups) {
+      for (const entry of (group.standings?.entries || [])) {
+        const team = entry.team;
+        const abbr = team.abbreviation;
+        let ppg = null, oppg = null;
+        for (const stat of (entry.stats || [])) {
+          if (stat.name === "avgPointsFor") ppg = +parseFloat(stat.value).toFixed(1);
+          if (stat.name === "avgPointsAgainst") oppg = +parseFloat(stat.value).toFixed(1);
+        }
+        stats[abbr] = { name: team.displayName, ppg, oppg };
+      }
     }
     res.json(stats);
   } catch (err) {
