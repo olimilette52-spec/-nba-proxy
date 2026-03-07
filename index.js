@@ -202,7 +202,17 @@ app.get("/nhl/stats", async (req, res) => {
     VAN:{gf:3.1,ga:2.8,pp:21.4,pk:81.4,shots:31.2}, VGK:{gf:3.2,ga:2.7,pp:22.0,pk:82.2,shots:32.0},
     WSH:{gf:3.0,ga:2.9,pp:21.0,pk:80.8,shots:30.8}, WPG:{gf:3.1,ga:2.7,pp:21.6,pk:81.8,shots:31.4},
   };
-  res.json(NHL_STATS);
+ const leagueAvgGF = 3.05;
+const adjusted = {};
+for(const [k,v] of Object.entries(NHL_STATS)){
+  adjusted[k] = {
+    ...v,
+    gf: +(v.gf * 0.7 + leagueAvgGF * 0.3).toFixed(2),
+    ga: +(v.ga * 0.7 + leagueAvgGF * 0.3).toFixed(2),
+  };
+}
+res.json(adjusted);
+ 
 });
 
 const PORT = process.env.PORT || 3000;
